@@ -21,3 +21,18 @@ Tasks:
 - Connecting to EC2
 - Set up Kafka in EC2 instance
 - Creating Kafka Topics
+
+## Milestone 4: Connect a MSK cluster to a S3 bucket
+Goal:
+- Use MSK Connect to connect the MSK cluster to a S3 bucket, such that any data going through the cluster will be automatically saved and stored in a dedicated S3 bucket.
+
+Tasks:
+- Creating a custom plugin with MSK Connect
+- Creating a connector with MSK Connect
+
+## Configuring an API Gateway
+Goals: To build our own API that send data to the MSK cluter, which in turn will be stored in an S3 bucket.
+
+## Milestone 5:
+
+## Milestone 6:
