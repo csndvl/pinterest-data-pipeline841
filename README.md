@@ -69,3 +69,15 @@ Goal:
 Tasks
 - Create and upload a DAG file into MWAA environment
 - Manually trigger the DAG to run a Databricks Notebook
+
+## Milestone 9: AWS Kinesis
+Goal:
+- Send streaming data to Kinesis and read this data inside Databricks
+
+Tasks
+- Create data stream using AWS Kinesis
+- Configure API with Kinesis proxy integration
+- Send data into Kinesis streams
+- Read data into Databricks
+- Transform data
+- Write the data to Delta Tables
