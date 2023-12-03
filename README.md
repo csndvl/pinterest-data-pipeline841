@@ -62,4 +62,10 @@ Tasks:
     - Find the median follower count of user based on their joining year
     - Find the median follower count of used based on their joining year and age group
 
-## Milestone 8: Orchestrate Databricks Workloads on AWS MWAA
+## Milestone 8: AWS MWAA
+Goal:
+- Orchestrate Databricks workloads on AWS MWAA
+
+Tasks
+- Create and upload a DAG file into MWAA environment
+- Manually trigger the DAG to run a Databricks Notebook
