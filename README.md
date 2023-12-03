@@ -46,3 +46,20 @@ Tasks:
 - Mount S3 bucket into Databricks
 - Create a dataframe for each topic
 
+## Milestone 7: Spark usage in Databricks
+Goal:
+- To clean and perform analyses to the data
+
+Tasks:
+- Clean each dataframe
+- Query the data
+    - Find the most popular category in each country
+    - Find which was the most popular category each year
+    - Find the user with the most followers in each country
+    - Find the most popular category for different age groups
+    - Find the median follower count for different age groups
+    - Find how many users have joined each year
+    - Find the median follower count of user based on their joining year
+    - Find the median follower count of used based on their joining year and age group
+
+## Milestone 8: Orchestrate Databricks Workloads on AWS MWAA
