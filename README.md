@@ -38,3 +38,11 @@ Tasks:
 - Set up the REST Proxy inside EC2 client
 - Send data to the API
 
+## Milestone 6: Set-up Databricks
+Goal:
+- To mount S3 bucket inside Databricks
+
+Tasks:
+- Mount S3 bucket into Databricks
+- Create a dataframe for each topic
+
