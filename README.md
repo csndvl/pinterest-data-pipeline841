@@ -24,11 +24,13 @@ Goal:
 Tasks:
 1. Creating a .pem key
     - Navigating to AWS Parameter Store to find the key pair value and saving it as "Key pair name.pem" file.
+
 2. Connecting to EC2
     - Connecting my local device into AWS EC2 by running the code below inside a terminal:
     ```
     ssh -i "12f4a3e5b9c5-key-pair.pem" ec2-user@ec2-184-73-115-68.compute-1.amazonaws.com
     ```
+
 3. Set up Kafka in EC2 instance
     - Once the EC2 was connected, Kafka was installed and client.properties file was created to configure Kafka Client to use AWS IAM authentication to the cluster.
 
@@ -47,6 +49,7 @@ Tasks:
     # The SASL client bound by "sasl.jaas.config" invokes this class.
     sasl.client.callback.handler.class = software.amazon.msk.auth.iam.IAMClientCallbackHandler
     ```
+
 4. Creating Kafka Topics
     - Before a topic was created, I had to grabbed my MSK cluster specific Bootstrap servers string and also its Plaintext Apache Zookeeper connection string.
     - Using the correct strings, I managed to create 3 topics:
@@ -64,8 +67,32 @@ Goal:
 - Use MSK Connect to connect the MSK cluster to a S3 bucket, such that any data going through the cluster will be automatically saved and stored in a dedicated S3 bucket.
 
 Tasks:
-- Creating a custom plugin with MSK Connect
-- Creating a connector with MSK Connect
+1. Creating a custom plugin with MSK Connect
+    - Before a custom plugin can be created inside MSK, Confluent.io Amazon S3 connector needs to be downloaded inside my EC2 client.
+    ```
+    wget https://d1i4a15mxbxib1.cloudfront.net/api/plugins/confluentinc/kafka-connect-s3/versions/10.0.3/confluentinc-kafka-connect-s3-10.0.3.zip
+    ```
+    - Inside the MSK Connect console, a custom plugin can be then set with the Confluent connector ZIP file inside a bucket
+
+2. Creating a connector with MSK Connect
+    - Inside MSK console, the connector configuration settings has been tweaked so it links to my own UUID and a specific S3 bucket.
+    ```
+    connector.class=io.confluent.connect.s3.S3SinkConnector
+    # same region as our bucket and cluster
+    s3.region=us-east-1
+    flush.size=1
+    schema.compatibility=NONE
+    tasks.max=3
+    # include nomeclature of topic name, given here as an example will read all data from topic names starting with msk.topic....
+    topics.regex=<YOUR_UUID>.*
+    format.class=io.confluent.connect.s3.format.json.JsonFormat
+    partitioner.class=io.confluent.connect.storage.partitioner.DefaultPartitioner
+    value.converter.schemas.enable=false
+    value.converter=org.apache.kafka.connect.json.JsonConverter
+    storage.class=io.confluent.connect.s3.storage.S3Storage
+    key.converter=org.apache.kafka.connect.storage.StringConverter
+    s3.bucket.name=<BUCKET_NAME>
+    ```
 
 ## Milestone 5: Configuring an API Gateway
 Goal: 
