@@ -471,14 +471,17 @@ Tasks:
 
     display(results)
     ```
-    
+
 ## Milestone 8: AWS MWAA
 Goal:
 - Orchestrate Databricks workloads on AWS MWAA
 
 Tasks
 - Create and upload a DAG file into MWAA environment
+    - DAG created: 12f4a3e5b9c5_dag.py
+    - This is uploaded inside S3 bucket name "mwaa-dag-bucket"
 - Manually trigger the DAG to run a Databricks Notebook
+    - Inside MWAA, the DAG is trigger to check if it runs successfully
 
 ## Milestone 9: AWS Kinesis
 Goal:
