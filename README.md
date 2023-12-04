@@ -174,7 +174,7 @@ Goal:
 - To mount S3 bucket inside Databricks
 
 Tasks:
-- Mount S3 bucket into Databricks
+1. Mount S3 bucket into Databricks
     - First we need to read the CSV file that contains our AWS keys inside Databricks.
     ```
     # pyspark functions
@@ -213,7 +213,7 @@ Tasks:
     dbutils.fs.mount(SOURCE_URL, MOUNT_NAME)
     ```
 
-- Create a dataframe for each topic
+2. Create a dataframe for each topic
     - A dataframe for each topic is created by finding its path, settings its file type, and reading it with this code below:
     ```    
     pin_file_location = "/mnt/12f4a3e5b9c5-bucket/topics/12f4a3e5b9c5.pin/partition=0/12f4a3e5b9c5.pin+0+0000000000.json" 
@@ -237,17 +237,241 @@ Goal:
 - To clean and perform analyses to the data
 
 Tasks:
-- Clean each dataframe
-- Query the data
-    - Find the most popular category in each country
-    - Find which was the most popular category each year
-    - Find the user with the most followers in each country
-    - Find the most popular category for different age groups
-    - Find the median follower count for different age groups
-    - Find how many users have joined each year
-    - Find the median follower count of user based on their joining year
-    - Find the median follower count of used based on their joining year and age group
+1. Clean each dataframe
+    - All three dataframes were cleaned by removing duplicates
+    ```
+    #Remove duplicated data
+    df_pin = df_pin.drop_duplicates([column_name for column_name, data_type in df_pin.dtypes])
+    df_pin.count()
+    df_geo = df_geo.drop_duplicates([column_name for column_name, data_type in df_geo.dtypes])
+    df_geo.count()
+    df_user = df_user.drop_duplicates([column_name for column_name, data_type in df_user.dtypes])
+    df_user.count()
+    ```
 
+    - Cleaning df_pin dataframe
+    ```
+    # Replace null values into None
+    df_pin_clean = df_pin.withColumn("category", when(df_pin["category"].isNull(), None).otherwise(df_pin["category"]))
+    df_pin_clean = df_pin.withColumn("description", when(df_pin["description"].isNull(), None).otherwise(df_pin["description"]))
+
+    # Replace entries with no relevant data into None
+    df_pin_clean = df_pin.withColumn("description", when(col("description").contains("No description"), None).otherwise(col("description")))
+    df_pin_clean = df_pin.withColumn("follower_count", when(col("follower_count").contains("User Info Error"), None).otherwise(col("follower_count")))
+    df_pin_clean = df_pin.withColumn("image_src", when(col("image_src").contains("Image src error"), None).otherwise(col("image_src")))
+    df_pin_clean = df_pin.withColumn("poster_name", when(col("poster_name").contains("User Info Error"), None).otherwise(col("poster_name")))
+
+    # Change M and k inside follower_column into its coresponding value
+    df_pin_clean = df_pin_clean.withColumn("follower_count", regexp_replace(df_pin_clean["follower_count"], "M", "000000"))
+    df_pin_clean = df_pin_clean.withColumn("follower_count", regexp_replace(df_pin_clean["follower_count"], "k", "000"))
+
+    # Change follower_count data type into int
+    df_pin_clean = df_pin_clean.withColumn("follower_count", df_pin_clean["follower_count"].cast("int"))
+
+    # Ensuring that each column containing numeric data has a numeric data type
+    df_pin_clean = df_pin_clean.withColumn("downloaded", df_pin_clean["downloaded"].cast("int"))
+    df_pin_clean = df_pin_clean.withColumn("index", df_pin_clean["index"].cast("int"))
+
+    # Cleaning the save_location column
+    df_pin_clean = df_pin_clean.withColumn("save_location", regexp_replace(df_pin_clean["save_location"], "Local save in", ""))
+
+    # Renaming index column into ind column
+    df_pin_clean = df_pin_clean.withColumnRenamed("index", "ind")
+
+    # Reorder dataframe columns
+    df_pin_clean = df_pin_clean.select(["ind", "unique_id", "title", "description", "follower_count", "poster_name", "tag_list", "is_image_or_video", "image_src", "save_location", "category"])
+    ```
+
+    - Cleaning df_geo dataframe
+    ```
+    # Creating a new coordinates column
+    df_geo_clean = df_geo.withColumn("coordinates", array(col("latitude"), col("longitude")))
+
+    # Dropping latitude and longitude column
+    df_geo_clean = df_geo_clean.drop("latitude", "longitude")
+
+    # Coverting timestamp into a timestamp data type
+    df_geo_clean = df_geo_clean.withColumn("timestamp", df_geo_clean["timestamp"].cast("timestamp"))
+
+    # Reordering columns
+    df_geo_clean = df_geo_clean.select(["ind", "country", "coordinates", "timestamp"])
+    ```
+
+    - Cleaning df_user dataframe
+    ```
+    # Creating an username column
+    df_user_clean = df_user.withColumn("user_name", concat(col("first_name"), col("last_name")))
+
+    # Dropping first and last name columns
+    df_user_clean = df_user_clean.drop("first_name", "last_name")
+
+    # Coverting date_joined column into a timestamp
+    df_user_clean = df_user_clean.withColumn("date_joined", df_user_clean["date_joined"].cast("timestamp"))
+
+    # Reodering columns
+    df_user_clean = df_user_clean.select(["ind","user_name","age","date_joined"])
+    ```
+
+2. Query the data
+    - Before querying the data, I created a temporary view in Spark SQL with the specified name "pin", "geo", and "user" to make typing the query a lot easier. This is done by running the code below:
+    ```
+    df_pin_clean.createOrReplaceTempView("pin")
+    df_geo_clean.createOrReplaceTempView("geo")
+    df_user_clean.createOrReplaceTempView("user")
+    ```
+    - Find the most popular category in each country
+    ```
+    result = spark.sql("""SELECT country, category, category_count
+                    FROM (
+                        SELECT country, category, COUNT(*) AS category_count,
+                            ROW_NUMBER() OVER (PARTITION BY country ORDER BY COUNT(*) DESC) AS rank
+                        FROM geo 
+                        JOIN pin 
+                        ON pin.ind = geo.ind
+                        GROUP BY country, category
+                    ) 
+                    WHERE rank = 1
+                    ORDER BY category_count DESC""")
+
+    display (result)
+    ```
+
+    - Find which was the most popular category each year
+    ```
+    result = spark.sql("""SELECT post_year, category, category_count
+                   FROM (
+                       SELECT YEAR(timestamp) as post_year, category, COUNT(*) as category_count,
+                           ROW_NUMBER() OVER (PARTITION BY YEAR(timestamp) ORDER BY COUNT(*) DESC) AS rank
+                        FROM geo
+                        JOIN pin
+                        ON pin.ind = geo.ind
+                        GROUP BY YEAR(timestamp), category
+                   )
+                   WHERE rank = 1
+                   ORDER BY category_count DESC""")
+
+    display (result)
+    ```
+
+    - Find the user with the most followers in each country
+    ```
+    result = spark.sql("""SELECT country, poster_name, MAX(follower_count) as follower_count
+                   FROM pin
+                   JOIn geo
+                   ON geo.ind = pin.ind
+                   GROUP BY country, poster_name
+                   ORDER BY follower_count DESC""")
+
+    display(result)
+    ```
+
+    - Find the country with the most follower
+    ```
+    result = spark.sql("""SELECT country, MAX(follower_count) as follower_count
+                   FROM pin
+                   JOIn geo
+                   ON geo.ind = pin.ind
+                   GROUP BY country
+                   ORDER BY follower_count DESC
+                   LIMIT 1""")
+
+    display(result)
+    ```
+
+    - Find the most popular category per age groups
+    ```
+    result = spark.sql("""
+    SELECT age_group, category, category_count
+    FROM (
+        SELECT age_group, category, category_count,
+            ROW_NUMBER() OVER (PARTITION BY age_group ORDER BY category_count DESC) AS rank
+        FROM (
+            SELECT
+                CASE
+                    WHEN age BETWEEN 18 AND 24 THEN "18-24"
+                    WHEN age BETWEEN 25 AND 35 THEN "25-35"
+                    WHEN age BETWEEN 36 AND 50 THEN "36-50"
+                    WHEN age > 50 THEN "50+"
+                    ELSE "NONE"
+                END AS age_group, category, COUNT(*) AS category_count
+            FROM user
+            JOIN pin
+            ON pin.ind = user.ind
+            GROUP BY age_group, category
+            ORDER BY category_count DESC
+        )
+    )WHERE rank = 1 
+    """)
+
+    display(result)
+    ```
+
+    - Find the median follower count for each age group
+    ```
+    results = spark.sql("""
+                    SELECT CASE 
+                    WHEN age BETWEEN 18 AND 24 THEN "18-24"
+                    WHEN age BETWEEN 25 AND 35 THEN "25-35"
+                    WHEN age BETWEEN 36 AND 50 THEN "36-50"
+                    WHEN age > 50 THEN "+50"
+                    ELSE "NONE" 
+                    END as age_group, PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY follower_count) AS median_follower_count
+                    FROM user
+                    JOIN pin
+                    ON pin.ind = user.ind
+                    GROUP BY age_group
+                    ORDER BY median_follower_count DESC
+                    """)
+    display(results)    
+    ```
+
+    - Find the number of users each year from 2015 - 2020
+    ```
+    results = spark.sql("""
+                    SELECT year(date_joined) as join_year, COUNT(date_joined) as numbers_users_joined
+                    FROM user 
+                    GROUP by join_year
+                    HAVING join_year BETWEEN 2015 and 2020
+                    """)
+
+    display(results)
+    ```
+
+    - Find the median follower count of users based on joining year
+    ```
+    results = spark.sql("""
+                    SELECT year(date_joined) as join_year, PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY follower_count) AS median_follower_count
+                    FROM user 
+                    JOIN pin
+                    ON pin.ind = user.ind
+                    GROUP by join_year
+                    HAVING join_year BETWEEN 2015 and 2020
+                    """)
+
+    display(results)
+    ```
+
+    - Find the median follower count of users based on joining year and age group
+    ```
+    results = spark.sql("""
+                    SELECT CASE
+                    WHEN age BETWEEN 18 AND 24 THEN "18-24"
+                    WHEN age BETWEEN 25 AND 35 THEN "25-35"
+                    WHEN age BETWEEN 36 AND 50 THEN "36-50"
+                    WHEN age > 50 THEN "+50"
+                    ELSE "NONE" 
+                    END as age_group, year(date_joined) as join_year, PERCENTILE_CONT(0.5) WITHIN GROUP(ORDER BY follower_count) AS median_follower_count
+                    FROM user 
+                    JOIN pin
+                    ON pin.ind = user.ind
+                    GROUP by join_year, age_group
+                    HAVING join_year BETWEEN 2015 and 2020
+                    ORDER BY join_year ASC, median_follower_count DESC
+                    """)
+
+    display(results)
+    ```
+    
 ## Milestone 8: AWS MWAA
 Goal:
 - Orchestrate Databricks workloads on AWS MWAA
