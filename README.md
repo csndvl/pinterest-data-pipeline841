@@ -26,15 +26,14 @@ Tasks:
     - Navigating to AWS Parameter Store to find the key pair value and saving it as "Key pair name.pem" file.
 - Connecting to EC2
     - Connecting my local device into AWS EC2 by running the code below inside a terminal:
-    '''
+    ```
     ssh -i "12f4a3e5b9c5-key-pair.pem" ec2-user@ec2-184-73-115-68.compute-1.amazonaws.com
-
-    '''
+    ```
 - Set up Kafka in EC2 instance
     - Once the EC2 was connected, Kafka was installed and client.properties file was created to configure Kafka Client to use AWS IAM authentication to the cluster.
 
     client.properties file contains:
-    '''
+    ```
     # Sets up TLS for encryption and SASL for authN.
     security.protocol = SASL_SSL
 
@@ -47,7 +46,7 @@ Tasks:
     # Encapsulates constructing a SigV4 signature based on extracted credentials.
     # The SASL client bound by "sasl.jaas.config" invokes this class.
     sasl.client.callback.handler.class = software.amazon.msk.auth.iam.IAMClientCallbackHandler
-    '''
+    ```
 - Creating Kafka Topics
     - Before a topic was created, I had to grabbed my MSK cluster specific Bootstrap servers string and also its Plaintext Apache Zookeeper connection string.
     - Using the correct strings, I managed to create 3 topics:
@@ -55,10 +54,10 @@ Tasks:
         - 12f4a3e5b9c5.geo
         - 12f4a3e5b9c5.user
     - The topics were created using this code below:
-    '''
+    ```
     ./kafka-topics.sh --create --zookeeper "PLAINTEXT://b-2.pinterestmskcluster.w8g8jt.c12.kafka.us-east-1.amazonaws.com:9098,b-1.pinterestmskcluster.w8g8jt.c12.kafka.us-east-1.amazonaws.com:9098,b-3.pinterestmskcluster.w8g8jt.c12.kafka.us-east-1.amazonaws.com:9098
-" --replication-factor 2 --partitions 1 --topic 12f4a3e5b9c5.pin
-    '''
+    " --replication-factor 2 --partitions 1 --topic 12f4a3e5b9c5.pin
+    ```
 
 ## Milestone 4: Connect a MSK cluster to a S3 bucket
 Goal:
