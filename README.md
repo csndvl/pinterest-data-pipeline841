@@ -22,14 +22,14 @@ Goal:
 - Create 3 topics with MSK
 
 Tasks:
-- Creating a .pem key
+1. Creating a .pem key
     - Navigating to AWS Parameter Store to find the key pair value and saving it as "Key pair name.pem" file.
-- Connecting to EC2
+2. Connecting to EC2
     - Connecting my local device into AWS EC2 by running the code below inside a terminal:
     ```
     ssh -i "12f4a3e5b9c5-key-pair.pem" ec2-user@ec2-184-73-115-68.compute-1.amazonaws.com
     ```
-- Set up Kafka in EC2 instance
+3. Set up Kafka in EC2 instance
     - Once the EC2 was connected, Kafka was installed and client.properties file was created to configure Kafka Client to use AWS IAM authentication to the cluster.
 
     client.properties file contains:
@@ -47,7 +47,7 @@ Tasks:
     # The SASL client bound by "sasl.jaas.config" invokes this class.
     sasl.client.callback.handler.class = software.amazon.msk.auth.iam.IAMClientCallbackHandler
     ```
-- Creating Kafka Topics
+4. Creating Kafka Topics
     - Before a topic was created, I had to grabbed my MSK cluster specific Bootstrap servers string and also its Plaintext Apache Zookeeper connection string.
     - Using the correct strings, I managed to create 3 topics:
         - 12f4a3e5b9c5.pin
