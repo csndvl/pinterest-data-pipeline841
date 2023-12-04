@@ -99,9 +99,75 @@ Goal:
 - To build our own API that send data to the MSK cluter, which in turn will be stored in an S3 bucket.
 
 Tasks:
-- Build a Kafka REST Proxy
-- Set up the REST Proxy inside EC2 client
-- Send data to the API
+1. Build a Kafka REST Proxy
+    - Inside AWS API Gateway, a resource is created that allows a PROXY integration to my API.
+    - This PROXY then contains a HTTP ANY method, that has my EC2 PublicDNS as its Endpoint URL
+
+2. Set up the REST Proxy inside EC2 client
+    - Before the REST Proxy can be run inside the EC2 client, a Confluent package needs to be installed inside the client first.
+    ```
+    sudo wget https://packages.confluent.io/archive/7.2/confluent-7.2.0.tar.gz
+    ```
+    - Inside the confluent/etc/kafka-rest folder, a kafka-rest.properties file is editted to perform IAM authentication to the MSK cluster
+    ```
+    client.security.protocol = SASL_SSL
+
+    # Identifies the SASL mechanism to use.
+    client.sasl.mechanism = AWS_MSK_IAM
+
+    # Binds SASL client implementation.
+    client.sasl.jaas.config = software.amazon.msk.auth.iam.IAMLoginModule required awsRoleArn="arn:aws:iam::584739742957:role/12f4a3e5b9c5-ec2-access-role";
+
+    # Encapsulates constructing a SigV4 signature based on extracted credentials.
+    # The SASL client bound by "sasl.jaas.config" invokes this class.
+    client.sasl.client.callback.handler.class = software.amazon.msk.auth.iam.IAMClientCallbackHandler
+    ```
+    - The REST proxy can be then run inside the EC2 client with the code below:
+    ```
+    # This code needs to be run inside confluent/bin folder
+    ./kafka-rest-start /home/ec2-user/confluent-7.2.0/etc/kafka-rest/kafka-rest.properties
+    ```
+
+3. Send data to the API
+    - Data is sent into the API by tweaking the user_posting_emulation.py
+    ```
+    #This function is called after every pin, geo, and user data is collected
+    def send_data_to_Kafka(data, topic, payload):
+    invoke_url = "https://iij0y5sisb.execute-api.us-east-1.amazonaws.com/Init"
+    url = invoke_url + "/topics/" + topic
+    print (url)
+
+    headers = {'Content-Type': 'application/vnd.kafka.json.v2+json'}
+    response = requests.request("POST",url, headers = headers, data = payload)
+    print (response.status_code)
+
+    return 
+
+    #Data for pin
+    for row in pin_selected_row:
+                pin_result = dict(row._mapping)
+                topic_name = "12f4a3e5b9c5.pin"
+                payload = json.dumps({
+                "records": [
+                    {   
+                    "value": {"index": pin_result["index"], 
+                            "unique_id": pin_result["unique_id"], 
+                            "title": pin_result["title"], 
+                            "description": pin_result["description"], 
+                            "poster_name": pin_result["poster_name"], 
+                            "follower_count": pin_result["follower_count"], 
+                            "tag_list": pin_result["tag_list"], 
+                            "is_image_or_video": pin_result["is_image_or_video"], 
+                            "image_src": pin_result["image_src"], 
+                            "downloaded": pin_result["downloaded"], 
+                            "save_location": pin_result["save_location"], 
+                            "category": pin_result["category"]}
+                        }
+                    ]
+                })
+                send_data_to_Kafka(pin_result, topic_name, payload)
+                print ("pin result sent")
+    ```
 
 ## Milestone 6: Set-up Databricks
 Goal:
