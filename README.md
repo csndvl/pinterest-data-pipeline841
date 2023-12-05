@@ -477,10 +477,10 @@ Goal:
 - Orchestrate Databricks workloads on AWS MWAA
 
 Tasks
-- Create and upload a DAG file into MWAA environment
+1. Create and upload a DAG file into MWAA environment
     - DAG created: 12f4a3e5b9c5_dag.py
     - This is uploaded inside S3 bucket name "mwaa-dag-bucket"
-- Manually trigger the DAG to run a Databricks Notebook
+2. Manually trigger the DAG to run a Databricks Notebook
     - Inside MWAA, the DAG is trigger to check if it runs successfully
 
 ## Milestone 9: AWS Kinesis
@@ -488,9 +488,131 @@ Goal:
 - Send streaming data to Kinesis and read this data inside Databricks
 
 Tasks
-- Create data stream using AWS Kinesis
-- Configure API with Kinesis proxy integration
-- Send data into Kinesis streams
-- Read data into Databricks
-- Transform data
-- Write the data to Delta Tables
+1. Create data stream using AWS Kinesis
+    - Inside AWS Kinesis, 3 data streams were made
+        1. streaming-12f4a3e5b9c5-pin
+        2. streaming-12f4a3e5b9c5-geo
+        3. streaming-12f4a3e5b9c5-user
+
+2. Configure API with Kinesis proxy integration
+    - A new resource is made inside AWS API Gateway to integrate Kinesis 
+        - Added HTTP Headers 
+        - Added Mapping Templates
+
+3. Send data into Kinesis streams
+    - A new file named user_posting_emulation_streaming.py is created to send data into Kinesis stream.
+    - After converting each data into the correct data type, this code is run to send it into the API.
+    ```
+     headers = {'Content-Type': 'application/json'}
+            response_pin = requests.request("PUT", "https://iij0y5sisb.execute-api.us-east-1.amazonaws.com/Streams/streams/streaming-12f4a3e5b9c5-pin/record", headers = headers, data = pin_payload)
+            response_geo = requests.request("PUT", "https://iij0y5sisb.execute-api.us-east-1.amazonaws.com/Streams/streams/streaming-12f4a3e5b9c5-geo/record", headers = headers, data = geo_payload)   
+            response_user = requests.request("PUT", "https://iij0y5sisb.execute-api.us-east-1.amazonaws.com/Streams/streams/streaming-12f4a3e5b9c5-user/record", headers = headers, data = user_payload)    
+    ```
+
+4. Read data into Databricks
+    - With Acess Key and Encoded Acess Key, dataframes can be created to each specific data streams.
+    ```
+    #Pin Data
+    df_pin = spark \
+    .readStream \
+    .format('kinesis') \
+    .option('streamName','streaming-12f4a3e5b9c5-pin') \
+    .option('initialPosition','earliest') \
+    .option('region','us-east-1') \
+    .option('awsAccessKey', ACCESS_KEY) \
+    .option('awsSecretKey', SECRET_KEY) \
+    .load()
+    ```
+
+    ```
+    #Geo Data
+    df_geo = spark \
+    .readStream \
+    .format('kinesis') \
+    .option('streamName','streaming-12f4a3e5b9c5-geo') \
+    .option('initialPosition','earliest') \
+    .option('region','us-east-1') \
+    .option('awsAccessKey', ACCESS_KEY) \
+    .option('awsSecretKey', SECRET_KEY) \
+    .load()
+    ```
+
+    ```
+    #User Data
+    df_user = spark \
+    .readStream \
+    .format('kinesis') \
+    .option('streamName','streaming-12f4a3e5b9c5-user') \
+    .option('initialPosition','earliest') \
+    .option('region','us-east-1') \
+    .option('awsAccessKey', ACCESS_KEY) \
+    .option('awsSecretKey', SECRET_KEY) \
+    .load()
+    ```
+
+5. Transform data
+    - Before the dataframes can be clean, each dataframe's scheme needs to be defined.
+    ```
+    pin_schema = StructType([
+    StructField("index", IntegerType()),
+    StructField("unique_id", StringType()),
+    StructField("title", StringType()),
+    StructField("description", StringType()),
+    StructField("poster_name", StringType()),
+    StructField("follower_count", StringType()),
+    StructField("tag_list", StringType()),
+    StructField("is_image_or_video", StringType()),
+    StructField("image_src", StringType()),
+    StructField("downloaded", IntegerType()),
+    StructField("save_location", StringType()),
+    StructField("category", StringType())
+    ])
+    geo_schema = StructType([
+    StructField("ind", IntegerType()),
+    StructField("timestamp", TimestampType()),
+    StructField("latitude", DoubleType()),
+    StructField("longitude", DoubleType()),
+    StructField("country", StringType())
+    ])
+    user_schema = StructType([
+    StructField("ind", IntegerType()),
+    StructField("first_name", StringType()),
+    StructField("last_name", StringType()),
+    StructField("age", StringType()),
+    StructField("date_joined", TimestampType())
+    ])
+    ```
+
+    - Each dataframe then needs to be deserialized 
+    ```
+    deserialize_df_pin = df_pin.selectExpr("CAST(data as STRING)")
+    deserialize_df_pin = deserialize_df_pin.withColumn("data", from_json(col("data"), pin_schema))
+    deserialize_df_pin = deserialize_df_pin.selectExpr("data.*")
+
+    deserialize_df_geo = df_geo.selectExpr("CAST(data as STRING)")
+    deserialize_df_geo = deserialize_df_geo.withColumn("data", from_json(col("data"), geo_schema))
+    deserialize_df_geo = deserialize_df_geo.selectExpr("data.*")
+
+
+    deserialize_df_user = df_user.selectExpr("CAST(data as STRING)")
+    deserialize_df_user = deserialize_df_user.withColumn("data", from_json(col("data"), user_schema))
+    deserialize_df_user = deserialize_df_user.selectExpr("data.*")
+    ```
+
+    - The data can then be clean the same way as we cleaned it on Milestone 7
+
+6. Write the data to Delta Tables
+    - Before it can be send into the delta tables, the checkpoint folder needs to be deleted.
+    ```
+    dbutils.fs.rm("/tmp/kinesis/_checkpoints/", True)
+    ```
+
+    - Then a clean dataframe can be written inside Delta Tables
+    ```
+    #Writes df_pin_clean dataframe into delta tables
+    df_pin_clean.writeStream \
+    .format("delta") \
+    .outputMode("append") \
+    .option("checkpointLocation", "/tmp/kinesis/_checkpoints/") \
+    .table("12f4a3e5b9c5_pin_table")
+    ```
